@@ -1,77 +1,25 @@
 @import "tailwindcss";
 
-@layer base {
-  :root {
-    --primary: #2563EB;
-    --primary-hover: #1D4ED8;
-    --secondary: #172554;
-    --background: #F8FAFC;
-    --card: #FFFFFF;
-    --text-primary: #0F172A;
-    --text-secondary: #475569;
-    --border: #E2E8F0;
-  }
-
-  body {
-    background-color: #F8FAFC;
-    color: #0F172A;
-    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    margin: 0;
-    padding: 0;
-    -webkit-font-smoothing: antialiased;
-  }
-
-  #root {
-    width: 100%;
-    min-height: 100vh;
-  }
+@theme {
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-serif: 'Playfair Display', Georgia, serif;
 }
 
-/* Custom Utilities and Animations */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+:root {
+  --palette-bg: #F2F3FB;
+  --palette-white: #FFFFFF;
+  --palette-terracotta: #AF4418;
+  --palette-terracotta-hover: #963810;
+  --palette-terracotta-light: #FCEEE8;
+  --palette-periwinkle-light: #F2F3FB;
+  --palette-periwinkle-border: #DCE0F5;
+  --palette-periwinkle-active: #E6E9FA;
+  --palette-text-dark: #1E1C24;
+  --palette-text-muted: #646074;
 }
 
-@keyframes pulseGlow {
-  0%, 100% { box-shadow: 0 0 15px rgba(37, 99, 235, 0.2); }
-  50% { box-shadow: 0 0 25px rgba(37, 99, 235, 0.4); }
-}
-
-.animate-fade-in {
-  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
-.glass-card {
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(226, 232, 240, 0.8);
-}
-
-.shopify-shadow {
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px 0 rgba(0, 0, 0, 0.03);
-}
-
-.shopify-shadow-md {
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-}
-
-.shopify-shadow-lg {
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.06), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
-}
-
-/* Custom Scrollbars */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #F1F5F9;
-}
-::-webkit-scrollbar-thumb {
-  background: #CBD5E1;
-  border-radius: 9999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #94A3B8;
+body {
+  font-family: var(--font-sans);
+  background-color: var(--palette-bg);
+  color: var(--palette-text-dark);
 }
