@@ -1,11 +1,14 @@
 {
   "name": "website-as-a-service-platform",
   "version": "1.0.0",
-  "description": "WaaS Platform - Shopify-inspired Website Builder SaaS",
+  "description": "WaaS Platform - Shopify-inspired Website Builder SaaS with E-Commerce and AI Templates",
   "scripts": {
-    "start": "node backend/server.js",
-    "server": "node --watch backend/server.js",
+    "start": "node backend/dist/server.js",
+    "server": "npm run dev --prefix backend",
+    "backend": "npm run dev --prefix backend",
     "frontend": "npm run dev --prefix frontend",
-    "build": "npm run build --prefix frontend"
+    "client": "npm run dev --prefix frontend",
+    "dev": "npm run dev --prefix backend",
+    "build": "npm run build --prefix backend && npm run build --prefix frontend"
   }
 }
