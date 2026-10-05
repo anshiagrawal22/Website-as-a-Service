@@ -1,6 +1,7 @@
 import { Response, NextFunction, Request } from 'express';
 import { prisma } from '../config/db.js';
 import { AppError } from '../middlewares/errorHandler.js';
+import { AuthRequest } from '../middlewares/auth.js';
 
 export async function createCheckout(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
@@ -92,11 +93,12 @@ export async function createCheckout(req: Request, res: Response, next: NextFunc
   }
 }
 
-export async function getOrders(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function getOrders(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const { slug } = req.params;
+    if (!req.user) throw new AppError('Authentication required.', 401);
     
-    const site = await prisma.site.findUnique({ where: { slug } });
+    const site = await prisma.site.findFirst({ where: { slug, userId: req.user.id } });
     if (!site) throw new AppError('Site not found', 404);
 
     const orders = await prisma.order.findMany({
@@ -111,12 +113,13 @@ export async function getOrders(req: Request, res: Response, next: NextFunction)
   }
 }
 
-export async function updateOrderStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function updateOrderStatus(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const { slug, orderId } = req.params;
     const { status, paymentStatus } = req.body;
+    if (!req.user) throw new AppError('Authentication required.', 401);
 
-    const site = await prisma.site.findUnique({ where: { slug } });
+    const site = await prisma.site.findFirst({ where: { slug, userId: req.user.id } });
     if (!site) throw new AppError('Site not found', 404);
 
     const data: any = {};
@@ -170,11 +173,12 @@ export async function createInquiry(req: Request, res: Response, next: NextFunct
   }
 }
 
-export async function getInquiries(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function getInquiries(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const { slug } = req.params;
+    if (!req.user) throw new AppError('Authentication required.', 401);
 
-    const site = await prisma.site.findUnique({ where: { slug } });
+    const site = await prisma.site.findFirst({ where: { slug, userId: req.user.id } });
     if (!site) throw new AppError('Store not found', 404);
 
     const inquiries = await prisma.inquiry.findMany({
@@ -191,16 +195,19 @@ export async function getInquiries(req: Request, res: Response, next: NextFuncti
   }
 }
 
-export async function updateInquiryStatus(req: Request, res: Response, next: NextFunction): Promise<void> {
+export async function updateInquiryStatus(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const { slug, inquiryId } = req.params;
     const { status } = req.body;
+    if (!req.user) throw new AppError('Authentication required.', 401);
 
-    const site = await prisma.site.findUnique({ where: { slug } });
+    const site = await prisma.site.findFirst({ where: { slug, userId: req.user.id } });
     if (!site) throw new AppError('Store not found', 404);
 
+    const existingInquiry = await prisma.inquiry.findFirst({ where: { id: inquiryId, siteId: site.id } });
+    if (!existingInquiry) throw new AppError('Inquiry not found.', 404);
     const updated = await prisma.inquiry.update({
-      where: { id: inquiryId },
+      where: { id: existingInquiry.id },
       data: { status },
     });
 
@@ -212,4 +219,3 @@ export async function updateInquiryStatus(req: Request, res: Response, next: Nex
     next(err);
   }
 }
-

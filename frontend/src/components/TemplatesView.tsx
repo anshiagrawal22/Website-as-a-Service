@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { WebsiteTemplate } from '../types.ts';
 import { ArrowRight, Eye, Sparkles, Check, X, ExternalLink } from 'lucide-react';
+import { api } from '../services/api.ts';
 
 interface TemplatesViewProps {
   templates: WebsiteTemplate[];
@@ -75,10 +76,9 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
             <Sparkles className="w-3.5 h-3.5" />
             <span>7 Designer Templates Available</span>
           </div>
-          <h2 className="font-serif text-3xl font-bold text-[#1E1C24]">Curated Business Templates</h2>
-          <p className="text-sm text-[#646074] mt-1.5 max-w-2xl">
-            Bespoke starting points tailored for wineries, bakeries, luxury interior architects, 
-            editorial photographers, and lifestyle ateliers.
+          <h2 className="font-serif text-3xl font-bold text-[#1E1C24]">Start With a Design</h2>
+          <p className="text-sm text-[#3F2B27] mt-1.5 max-w-2xl">
+            Choose a template that fits your business and start building.
           </p>
         </div>
         <div className="mt-4 sm:mt-0 flex gap-2">
@@ -195,7 +195,7 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
               {/* Action Buttons */}
               <div className="mt-6 pt-4 border-t border-[#DCE0F5] flex items-center justify-between gap-2">
                 <a
-                  href={`http://localhost:5001/s/${previewMeta.previewSlug}`}
+                  href={api.getTemplatePreviewUrl(previewMeta.previewSlug)}
                   target="_blank"
                   rel="noreferrer"
                   className="text-xs font-semibold text-[#646074] hover:text-[#AF4418] flex items-center gap-1 transition-colors"
@@ -277,7 +277,7 @@ export const TemplatesView: React.FC<TemplatesViewProps> = ({
 
             <div className="pt-4 border-t border-[#DCE0F5] flex items-center justify-between">
               <a
-                href={`http://localhost:5001/s/${TEMPLATE_PREVIEWS[previewingTemplate.id]?.previewSlug || previewingTemplate.id}`}
+                href={api.getTemplatePreviewUrl(TEMPLATE_PREVIEWS[previewingTemplate.id]?.previewSlug || previewingTemplate.id)}
                 target="_blank"
                 rel="noreferrer"
                 className="text-xs font-semibold text-[#AF4418] hover:underline flex items-center gap-1.5"

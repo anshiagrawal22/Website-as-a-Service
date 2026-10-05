@@ -39,6 +39,7 @@ export async function register(req: Request, res: Response, next: NextFunction):
         role: true,
         plan: true,
         avatarUrl: true,
+        themePreference: true,
         createdAt: true,
       },
     });
@@ -98,6 +99,7 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
         role: user.role,
         plan: user.plan,
         avatarUrl: user.avatarUrl,
+        themePreference: user.themePreference,
         createdAt: user.createdAt,
       },
     });
@@ -121,6 +123,7 @@ export async function getMe(req: AuthRequest, res: Response, next: NextFunction)
         role: true,
         plan: true,
         avatarUrl: true,
+        themePreference: true,
         createdAt: true,
         _count: {
           select: { sites: true },
@@ -147,13 +150,18 @@ export async function updateProfile(req: AuthRequest, res: Response, next: NextF
       throw new AppError('Not authenticated.', 401);
     }
 
-    const { name, avatarUrl } = req.body;
+    const { name, avatarUrl, themePreference } = req.body;
+    const validThemes = ['terracotta', 'sage', 'amber'];
+    if (themePreference !== undefined && !validThemes.includes(themePreference)) {
+      throw new AppError('Unsupported theme preference.', 400);
+    }
 
     const updatedUser = await prisma.user.update({
       where: { id: req.user.id },
       data: {
         ...(name ? { name: name.trim() } : {}),
         ...(avatarUrl !== undefined ? { avatarUrl } : {}),
+        ...(themePreference !== undefined ? { themePreference } : {}),
       },
       select: {
         id: true,
@@ -162,6 +170,7 @@ export async function updateProfile(req: AuthRequest, res: Response, next: NextF
         role: true,
         plan: true,
         avatarUrl: true,
+        themePreference: true,
         updatedAt: true,
       },
     });

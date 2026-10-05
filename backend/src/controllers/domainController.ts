@@ -5,10 +5,12 @@ import { AppError } from '../middlewares/errorHandler.js';
 
 export async function getAllDomains(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
+    if (!req.user) throw new AppError('Authentication required.', 401);
     const domains = await prisma.customDomain.findMany({
+      where: { userId: req.user.id },
       include: {
-        project: {
-          select: { id: true, name: true, status: true, progress: true },
+        site: {
+          select: { id: true, name: true, status: true },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -16,7 +18,10 @@ export async function getAllDomains(req: AuthRequest, res: Response, next: NextF
 
     res.status(200).json({
       success: true,
-      domains,
+      domains: domains.map(({ site, ...domain }) => ({
+        ...domain,
+        project: site,
+      })),
     });
   } catch (err) {
     next(err);
@@ -25,18 +30,19 @@ export async function getAllDomains(req: AuthRequest, res: Response, next: NextF
 
 export async function createDomain(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { domain, projectId } = req.body;
+    if (!req.user) throw new AppError('Authentication required.', 401);
+    const { domain } = req.body;
+    const siteId = req.body.siteId || req.body.projectId;
 
-    if (!domain) {
+    if (typeof domain !== 'string' || !domain.trim()) {
       throw new AppError('Domain name is required.', 400);
     }
 
-    const userId = req.user?.id || (await prisma.user.findFirst())?.id;
-    if (!userId) {
-      throw new AppError('User authentication required.', 401);
-    }
-
-    const cleanDomain = domain.toLowerCase().trim().replace(/^https?:\/\//, '');
+    const cleanDomain = domain.toLowerCase().trim().replace(/^https?:\/\//, '').replace(/\/+$/, '');
+    const site = siteId
+      ? await prisma.site.findFirst({ where: { OR: [{ id: siteId }, { slug: siteId }], userId: req.user.id } })
+      : null;
+    if (siteId && !site) throw new AppError('Site not found.', 404);
 
     const existing = await prisma.customDomain.findUnique({
       where: { domain: cleanDomain },
@@ -49,29 +55,18 @@ export async function createDomain(req: AuthRequest, res: Response, next: NextFu
     const newDomain = await prisma.customDomain.create({
       data: {
         domain: cleanDomain,
-        userId,
-        projectId: projectId || null,
+        userId: req.user.id,
+        siteId: site?.id || null,
         status: 'dns_active',
         dnsTarget: '76.76.21.21',
         sslStatus: 'active',
       },
-      include: {
-        project: {
-          select: { id: true, name: true, status: true },
-        },
-      },
+      include: { site: { select: { id: true, name: true, status: true } } },
     });
-
-    if (projectId) {
-      await prisma.project.update({
-        where: { id: projectId },
-        data: { customDomain: cleanDomain },
-      });
-    }
 
     res.status(201).json({
       success: true,
-      domain: newDomain,
+      domain: { ...newDomain, project: newDomain.site },
       message: 'Domain connected successfully.',
     });
   } catch (err) {
@@ -81,19 +76,18 @@ export async function createDomain(req: AuthRequest, res: Response, next: NextFu
 
 export async function deleteDomain(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
+    if (!req.user) throw new AppError('Authentication required.', 401);
     const { id } = req.params;
 
-    const domain = await prisma.customDomain.findUnique({
-      where: { id },
+    const domain = await prisma.customDomain.findFirst({
+      where: { id, userId: req.user.id },
     });
 
     if (!domain) {
       throw new AppError(`Domain '${id}' was not found.`, 404);
     }
 
-    await prisma.customDomain.delete({
-      where: { id },
-    });
+    await prisma.customDomain.delete({ where: { id: domain.id } });
 
     res.status(200).json({
       success: true,

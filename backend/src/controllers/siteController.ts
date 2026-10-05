@@ -390,7 +390,8 @@ export async function getPublicSite(req: AuthRequest, res: Response, next: NextF
 
     if (req.accepts('html')) {
       const html = renderStorefrontHtml(site.name, site.slug, config, products);
-      return res.send(html);
+      res.send(html);
+      return;
     }
 
     res.json({ success: true, config, products, slug: site.slug, name: site.name });

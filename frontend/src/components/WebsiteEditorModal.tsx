@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { WebsiteProject, SiteConfig, Product, DEFAULT_THEME } from '../types.ts';
 import { api } from '../services/api.ts';
 import { ProductManagerModal } from './ProductManagerModal.tsx';
+import { StyledSelect } from './StyledSelect.tsx';
 import {
   X,
   Smartphone,
@@ -53,6 +54,7 @@ export const WebsiteEditorModal: React.FC<WebsiteEditorModalProps> = ({
     if ((project as any).draftConfig) return (project as any).draftConfig;
     return {
       siteName: project.name,
+      logoUrl: project.businessInfo?.logoUrl,
       tagline: project.businessInfo?.description || 'Effortless silhouettes crafted in pure linen & botanical silks',
       announcement: project.announcement || 'Free Worldwide Shipping on orders over $150 · Spring Capsule Live',
       showAnnouncement: true,
@@ -131,7 +133,7 @@ export const WebsiteEditorModal: React.FC<WebsiteEditorModalProps> = ({
         ],
       },
       contact: {
-        email: project.businessInfo?.email || 'admin@aureliaboutique.com',
+        email: project.businessInfo?.email || '',
         phone: project.businessInfo?.phone || '+1 (415) 890-2341',
         address: project.businessInfo?.streetAddress || '428 Sutter Street, San Francisco, CA',
         hours: project.businessInfo?.operatingHours || 'Mon - Sat: 10:00 AM – 6:30 PM',
@@ -179,6 +181,8 @@ export const WebsiteEditorModal: React.FC<WebsiteEditorModalProps> = ({
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [storeOrders, setStoreOrders] = useState<any[]>([]);
   const [isFetchingOrders, setIsFetchingOrders] = useState(false);
+  const [ordersError, setOrdersError] = useState('');
+  const [editorError, setEditorError] = useState('');
 
   // Fetch real site config, products, and version history from backend
   useEffect(() => {
@@ -186,9 +190,9 @@ export const WebsiteEditorModal: React.FC<WebsiteEditorModalProps> = ({
     async function loadBackendData() {
       try {
         const [configRes, prodsRes, versRes] = await Promise.all([
-          api.getSiteConfig(siteId).catch(() => null),
-          api.getProducts(siteId).catch(() => null),
-          api.getVersions(siteId).catch(() => []),
+          api.getSiteConfig(siteId),
+          api.getProducts(siteId),
+          api.getVersions(siteId),
         ]);
 
         if (isMounted && configRes?.draftConfig) {
@@ -211,15 +215,17 @@ export const WebsiteEditorModal: React.FC<WebsiteEditorModalProps> = ({
         // Fetch orders for store management tab
         try {
           const slug = project.urlSlug || project.id;
-          const ordRes = await fetch(`http://localhost:5001/api/store/${slug}/orders`);
-          if (ordRes.ok) {
-            const ordData = await ordRes.json();
-            if (isMounted && ordData.success) setStoreOrders(ordData.orders);
+          const orders = await api.getOrders(slug);
+          if (isMounted) {
+            setStoreOrders(orders);
+            setOrdersError('');
           }
-        } catch (e) { /* orders endpoint may not exist yet, fail silently */ }
+        } catch (error) {
+          if (isMounted) setOrdersError(error instanceof Error ? error.message : 'Unable to load orders.');
+        }
 
       } catch (err) {
-        console.warn('Backend live data sync:', err);
+        if (isMounted) setEditorError(err instanceof Error ? err.message : 'Unable to load website data.');
       }
     }
     loadBackendData();
@@ -302,6 +308,7 @@ export const WebsiteEditorModal: React.FC<WebsiteEditorModalProps> = ({
   // Save changes to backend
   const handleSave = async (createSnapshot = false, label?: string) => {
     setIsSaving(true);
+    setEditorError('');
     try {
       const configToSave = {
         ...siteConfig,
@@ -327,7 +334,7 @@ export const WebsiteEditorModal: React.FC<WebsiteEditorModalProps> = ({
         setVersions(v);
       }
     } catch (err) {
-      console.error('Failed to save site config:', err);
+      setEditorError(err instanceof Error ? err.message : 'Unable to save website changes.');
     } finally {
       setIsSaving(false);
     }
@@ -336,6 +343,7 @@ export const WebsiteEditorModal: React.FC<WebsiteEditorModalProps> = ({
   // Publish site to live
   const handlePublish = async () => {
     setIsPublishing(true);
+    setEditorError('');
     try {
       // First save current draft config
       await api.saveSiteConfig(siteId, { ...siteConfig, setupSteps }, true, 'Before Publish');
@@ -348,14 +356,13 @@ export const WebsiteEditorModal: React.FC<WebsiteEditorModalProps> = ({
         status: 'published',
         progress: 100,
         lastEdited: 'Published just now',
-        url: `http://localhost:5001/api/sites/public/${urlSlug}`,
+        url: api.getPublicSiteUrl(urlSlug),
       });
 
       setSaveToast(true);
       setTimeout(() => setSaveToast(false), 3000);
     } catch (err) {
-      console.error('Failed to publish site:', err);
-      alert('Failed to publish website. Check backend logs.');
+      setEditorError(err instanceof Error ? err.message : 'Unable to publish the website.');
     } finally {
       setIsPublishing(false);
     }
@@ -363,6 +370,7 @@ export const WebsiteEditorModal: React.FC<WebsiteEditorModalProps> = ({
 
   // Revert to draft
   const handleRevertDraft = async () => {
+    setEditorError('');
     try {
       await api.revertSiteToDraft(siteId);
       setSiteStatus('draft');
@@ -372,7 +380,7 @@ export const WebsiteEditorModal: React.FC<WebsiteEditorModalProps> = ({
         lastEdited: 'Reverted to draft just now',
       });
     } catch (err) {
-      console.error('Failed to revert to draft:', err);
+      setEditorError(err instanceof Error ? err.message : 'Unable to revert the website to draft.');
     }
   };
 
@@ -387,6 +395,7 @@ export const WebsiteEditorModal: React.FC<WebsiteEditorModalProps> = ({
 
   // Restore snapshot version
   const handleRestoreVersion = async (versionId: string) => {
+    setEditorError('');
     try {
       const restored = await api.restoreVersion(siteId, versionId);
       if (restored?.draftConfig) {
@@ -394,7 +403,7 @@ export const WebsiteEditorModal: React.FC<WebsiteEditorModalProps> = ({
         alert('Version snapshot successfully restored!');
       }
     } catch (err) {
-      console.error('Failed to restore version:', err);
+      setEditorError(err instanceof Error ? err.message : 'Unable to restore this version.');
     }
   };
 
@@ -404,10 +413,16 @@ export const WebsiteEditorModal: React.FC<WebsiteEditorModalProps> = ({
   const displayProducts = products.filter((p) => p.status === 'active');
   const previewProducts = displayProducts.length > 0 ? displayProducts : products;
 
-  const publicUrl = `http://localhost:5001/api/sites/public/${urlSlug}`;
+  const publicUrl = api.getPublicSiteUrl(urlSlug);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-[#FFFFFF] antialiased">
+      {editorError && (
+        <div role="alert" className="flex items-center justify-between gap-4 border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800">
+          <span>{editorError}</span>
+          <button type="button" onClick={() => setEditorError('')} className="font-semibold underline">Dismiss</button>
+        </div>
+      )}
       
       {/* ┌────────────────────────────────────────────────────────────────────────────┐
           │ TOP ACTION TOOLBAR                                                         │
@@ -629,7 +644,7 @@ export const WebsiteEditorModal: React.FC<WebsiteEditorModalProps> = ({
                         const copy = await api.generateAiContent(siteConfig.siteName, 'Fashion', 'headline');
                         if (copy) updateSectionProps('hero', { headline: copy });
                       } catch (err) {
-                        console.warn('AI copy error:', err);
+                        setEditorError(err instanceof Error ? err.message : 'Unable to generate copy.');
                       } finally {
                         setIsGeneratingAi(false);
                       }
@@ -817,7 +832,7 @@ export const WebsiteEditorModal: React.FC<WebsiteEditorModalProps> = ({
                       const updated = await api.getSiteConfig(siteId);
                       if (updated?.draftConfig) setSiteConfig(updated.draftConfig);
                     } catch (err) {
-                      console.warn('Template change:', err);
+                      setEditorError(err instanceof Error ? err.message : 'Unable to apply this template.');
                     }
                   }}
                   className="w-full rounded-xl border border-[#DCE0F5] bg-white py-2 px-3 text-xs font-semibold text-[#1E1C24] cursor-pointer"
@@ -972,19 +987,20 @@ export const WebsiteEditorModal: React.FC<WebsiteEditorModalProps> = ({
                   <label className="block text-xs font-medium text-[#646074] mb-1">
                     Editorial Display Heading Font
                   </label>
-                  <select
+                  <StyledSelect
+                    id="editor-heading-font"
                     value={fontSerif}
-                    onChange={(e) => setSiteConfig({
+                    onChange={(font) => setSiteConfig({
                       ...siteConfig,
-                      theme: { ...siteConfig.theme, fontSerif: e.target.value },
+                      theme: { ...siteConfig.theme, fontSerif: font },
                     })}
-                    className="w-full rounded-xl border border-[#DCE0F5] bg-white px-3 py-2 text-xs text-[#1E1C24] cursor-pointer"
-                  >
-                    <option value="Playfair Display">Playfair Display (Editorial Serif)</option>
-                    <option value="Cinzel">Cinzel (Architectural Classic)</option>
-                    <option value="Cormorant Garamond">Cormorant Garamond (Graceful Roman)</option>
-                    <option value="Plus Jakarta Sans">Plus Jakarta Sans (Clean Modern)</option>
-                  </select>
+                    options={[
+                      { value: 'Playfair Display', label: 'Playfair Display', detail: 'Editorial Serif' },
+                      { value: 'Cinzel', label: 'Cinzel', detail: 'Architectural Classic' },
+                      { value: 'Cormorant Garamond', label: 'Cormorant Garamond', detail: 'Graceful Roman' },
+                      { value: 'Plus Jakarta Sans', label: 'Plus Jakarta Sans', detail: 'Clean Modern' },
+                    ]}
+                  />
                 </div>
               </div>
 
@@ -1256,11 +1272,14 @@ export const WebsiteEditorModal: React.FC<WebsiteEditorModalProps> = ({
                 <button
                   onClick={async () => {
                     setIsFetchingOrders(true);
-                    const slug = project.urlSlug || project.id;
-                    const res = await fetch(`http://localhost:5001/api/store/${slug}/orders`);
-                    const data = await res.json();
-                    if (data.success) setStoreOrders(data.orders);
-                    setIsFetchingOrders(false);
+                    setOrdersError('');
+                    try {
+                      setStoreOrders(await api.getOrders(project.urlSlug || project.id));
+                    } catch (error) {
+                      setOrdersError(error instanceof Error ? error.message : 'Unable to load orders.');
+                    } finally {
+                      setIsFetchingOrders(false);
+                    }
                   }}
                   className="text-[10px] font-bold px-2.5 py-1 rounded-lg border border-[#DCE0F5] text-[#646074] hover:bg-[#F2F3FB] transition-colors"
                 >
@@ -1268,6 +1287,7 @@ export const WebsiteEditorModal: React.FC<WebsiteEditorModalProps> = ({
                 </button>
               </div>
 
+              {ordersError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-800">{ordersError}</p>}
               {isFetchingOrders ? (
                 <div className="text-center py-10 text-[#646074] text-xs">Loading orders…</div>
               ) : storeOrders.length === 0 ? (
@@ -1289,14 +1309,16 @@ export const WebsiteEditorModal: React.FC<WebsiteEditorModalProps> = ({
                           value={order.status}
                           onChange={async (e) => {
                             const newStatus = e.target.value;
+                            const previousStatus = order.status;
+                            setStoreOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: newStatus } : o));
                             try {
-                              const res = await fetch(`http://localhost:5001/api/store/${urlSlug}/orders/${order.id}`, {
-                                method: 'PUT',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ status: newStatus })
-                              });
-                              if (res.ok) setStoreOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: newStatus } : o));
-                            } catch { alert('Failed to update status'); }
+                              const updated = await api.updateOrderStatus(urlSlug, order.id, newStatus);
+                              setStoreOrders(prev => prev.map(o => o.id === order.id ? updated : o));
+                              setOrdersError('');
+                            } catch (error) {
+                              setStoreOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: previousStatus } : o));
+                              setOrdersError(error instanceof Error ? error.message : 'Unable to update order status.');
+                            }
                           }}
                           className={`text-[10px] font-bold px-2.5 py-1 rounded-full border outline-none cursor-pointer ${
                             order.status === 'pending' ? 'bg-orange-50 text-orange-600 border-orange-200' :
@@ -1365,6 +1387,9 @@ export const WebsiteEditorModal: React.FC<WebsiteEditorModalProps> = ({
             }`}
             style={{
               fontFamily: fontSerif === 'Playfair Display' ? '"Playfair Display", Georgia, serif' : fontSerif,
+              ['--font-serif' as string]: fontSerif === 'Plus Jakarta Sans'
+                ? '"Plus Jakarta Sans", sans-serif'
+                : `"${fontSerif}", Georgia, serif`,
             }}
           >
             {/* Mobile Device Status Bar */}
@@ -1394,7 +1419,9 @@ export const WebsiteEditorModal: React.FC<WebsiteEditorModalProps> = ({
             {/* Live Navigation Bar */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-[#DCE0F5] bg-[#FFFFFF]">
               <span className="font-serif text-xl sm:text-2xl font-bold tracking-tight text-[#1E1C24]">
-                {siteConfig.siteName}
+                {siteConfig.logoUrl ? (
+                  <img src={siteConfig.logoUrl} alt={siteConfig.siteName} className="h-9 max-w-36 object-contain" />
+                ) : siteConfig.siteName}
               </span>
 
               {/* Desktop Nav Links */}
@@ -1503,7 +1530,7 @@ export const WebsiteEditorModal: React.FC<WebsiteEditorModalProps> = ({
               }
 
               // ── PRODUCT GRID ──────────────────────────────────────────────────
-              if (sec.type === 'product-grid' || sec.type === 'products') {
+              if (sec.type === 'product-grid') {
                 return (
                   <div key={key} id="products" className="p-6 sm:p-8 flex-1 transition-all duration-300 bg-white border-t border-[#DCE0F5]">
                     <div className="flex items-center justify-between mb-6">
@@ -2138,27 +2165,18 @@ export const WebsiteEditorModal: React.FC<WebsiteEditorModalProps> = ({
                           onClick={async () => {
                             setIsPlacingOrder(true);
                             try {
-                              const res = await fetch(`http://localhost:5001/api/store/${urlSlug}/checkout/init`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                  items: cart.map(i => ({ id: i.id, quantity: i.quantity })),
-                                  customer: { name: checkoutForm.name, email: checkoutForm.email, phone: checkoutForm.phone },
-                                  shippingAddress: { fullName: checkoutForm.name, line1: checkoutForm.line1, line2: checkoutForm.line2, city: checkoutForm.city, state: checkoutForm.state, pin: checkoutForm.pin, country: checkoutForm.country },
-                                  shippingMethod: checkoutForm.shippingMethod,
-                                  paymentMethod: checkoutForm.paymentMethod
-                                })
+                              const result = await api.createCheckout(urlSlug, {
+                                items: cart.map(i => ({ id: i.id, quantity: i.quantity })),
+                                customer: { name: checkoutForm.name, email: checkoutForm.email, phone: checkoutForm.phone },
+                                shippingAddress: { fullName: checkoutForm.name, line1: checkoutForm.line1, line2: checkoutForm.line2, city: checkoutForm.city, state: checkoutForm.state, pin: checkoutForm.pin, country: checkoutForm.country },
+                                shippingMethod: checkoutForm.shippingMethod,
+                                paymentMethod: checkoutForm.paymentMethod,
                               });
-                              const data = await res.json();
-                              if (data.success) {
-                                setCart([]);
-                                setCheckoutOrderNumber(data.orderNumber);
-                                setCheckoutStep(4);
-                              } else {
-                                alert(data.message || 'Error placing order');
-                              }
+                              setCart([]);
+                              setCheckoutOrderNumber(result.orderNumber);
+                              setCheckoutStep(4);
                             } catch (err) {
-                              alert('Failed to place order');
+                              alert(err instanceof Error ? err.message : 'Failed to place order.');
                             }
                             setIsPlacingOrder(false);
                           }}

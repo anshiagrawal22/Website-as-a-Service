@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { authenticateToken } from '../middlewares/auth.js';
 import { 
   createCheckout, 
   getOrders, 
@@ -13,14 +14,13 @@ const router = Router();
 // ─── Public Store Endpoints ───────────────────────────────────────────────────
 
 router.post('/:slug/checkout/init', createCheckout);
-router.get('/:slug/orders', getOrders);
-router.put('/:slug/orders/:orderId', updateOrderStatus);
+router.get('/:slug/orders', authenticateToken, getOrders);
+router.put('/:slug/orders/:orderId', authenticateToken, updateOrderStatus);
 
 // Inquiries & Bookings
 router.post('/:slug/inquiries', createInquiry);
 router.post('/:slug/inquiry', createInquiry); // alias
-router.get('/:slug/inquiries', getInquiries);
-router.patch('/:slug/inquiries/:inquiryId', updateInquiryStatus);
+router.get('/:slug/inquiries', authenticateToken, getInquiries);
+router.patch('/:slug/inquiries/:inquiryId', authenticateToken, updateInquiryStatus);
 
 export default router;
-

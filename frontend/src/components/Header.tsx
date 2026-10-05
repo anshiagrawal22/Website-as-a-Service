@@ -7,6 +7,7 @@ interface HeaderProps {
   onSelectNav: (nav: string) => void;
   onOpenSettings: () => void;
   onOpenHelp: () => void;
+  onSignOut: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -14,16 +15,18 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectNav,
   onOpenSettings,
   onOpenHelp,
+  onSignOut,
 }) => {
   const [profileOpen, setProfileOpen] = useState(false);
-  const [userName, setUserName] = useState('Dimple');
-  const [userFullName, setUserFullName] = useState('Dimple Lulla');
-  const [userEmail, setUserEmail] = useState('dimplelulla2004@gmail.com');
-  const [userPlan, setUserPlan] = useState('Studio Pro Plan');
+  const [userName, setUserName] = useState('Account');
+  const [userFullName, setUserFullName] = useState('');
+  const [userEmail, setUserEmail] = useState('');
+  const [userPlan, setUserPlan] = useState('Free Plan');
   const profileRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     async function loadUser() {
+      if (!api.getToken()) return;
       try {
         const user = await api.getMe();
         if (user) {
@@ -33,7 +36,9 @@ export const Header: React.FC<HeaderProps> = ({
           if (user.plan) setUserPlan(user.plan);
         }
       } catch (err) {
-        // Fallback to initial Dimple profile
+        setUserName('Account');
+        setUserFullName('');
+        setUserEmail('');
       }
     }
     loadUser();
@@ -72,9 +77,9 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </div>
 
-        {/* Zone 2: Navigation Links: Home, Websites, Templates, Pricing, Manage Info */}
+        {/* Zone 2: Navigation Links */}
         <nav className="flex items-center gap-1 sm:gap-2">
-          {(['Home', 'Websites', 'Templates', 'Pricing', 'Manage Info'] as const).map((item) => {
+          {(['Home', 'Templates', 'Pricing', 'Manage Info'] as const).map((item) => {
             const isActive = activeNav === item;
             return (
               <button
@@ -136,7 +141,7 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-[#DCE0F5] bg-[#FFFFFF] p-1.5 shadow-xl shadow-black/5 ring-1 ring-black/5 z-50 animate-fadeIn">
                 <div className="px-3 py-2.5 border-b border-[#DCE0F5] mb-1">
                   <p className="text-xs font-medium text-[#646074]">Signed in as</p>
-                  <p className="text-sm font-semibold text-[#1E1C24] truncate">{userFullName}</p>
+                  <p className="text-sm font-semibold text-[#1E1C24] truncate">{userFullName || userName}</p>
                   <p className="text-xs text-[#646074] truncate">{userEmail}</p>
                   <div className="mt-2 flex items-center justify-between">
                     <span className="text-[11px] font-semibold text-[#AF4418] bg-[#FCEEE8] border border-[#F3D5C8] px-2 py-0.5 rounded-md">
@@ -183,7 +188,10 @@ export const Header: React.FC<HeaderProps> = ({
 
                 <div className="border-t border-[#DCE0F5] mt-1 pt-1">
                   <button
-                    onClick={() => setProfileOpen(false)}
+                    onClick={() => {
+                      setProfileOpen(false);
+                      onSignOut();
+                    }}
                     className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs text-red-700 hover:bg-red-50 transition-colors"
                   >
                     <LogOut className="h-3.5 w-3.5" />

@@ -16,17 +16,7 @@ export const ContinueBuildingCard: React.FC<ContinueBuildingCardProps> = ({
   const [showSteps, setShowSteps] = useState(false);
 
   return (
-    <section className="mx-auto max-w-4xl lg:max-w-5xl px-4 sm:px-6 pt-10 pb-12">
-      
-      {/* ── Continue Building ── Section Divider */}
-      <div className="flex items-center justify-center gap-4 mb-8">
-        <div className="h-px flex-1 max-w-32 bg-[#DCE0F5]" />
-        <span className="text-xs font-bold tracking-wider uppercase text-[#646074]">
-          Continue Building
-        </span>
-        <div className="h-px flex-1 max-w-32 bg-[#DCE0F5]" />
-      </div>
-
+    <section className="mx-auto max-w-4xl lg:max-w-5xl px-4 sm:px-6 pt-0 pb-12">
       {/* Main Wireframe Card - Horizontal Split on Desktop (lg:flex-row) */}
       <div className="group relative overflow-hidden rounded-3xl border border-[#DCE0F5] bg-[#FFFFFF] shadow-sm transition-all duration-300 hover:border-[#AF4418]/50 hover:shadow-xl hover:shadow-[#AF4418]/10 flex flex-col lg:flex-row">
         
@@ -43,7 +33,7 @@ export const ContinueBuildingCard: React.FC<ContinueBuildingCardProps> = ({
             
             <div className="flex items-center gap-1 text-[11px] font-mono text-[#646074] bg-[#F2F3FB] px-2.5 py-0.5 rounded-md border border-[#DCE0F5]">
               <Globe className="h-2.5 w-2.5 text-[#AF4418]" />
-              <span>{project.customDomain || 'aureliaboutique.com'}</span>
+              <span>{project.customDomain || 'No domain connected'}</span>
             </div>
 
             <button

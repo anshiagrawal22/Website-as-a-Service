@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Upload, ChevronDown, Check, ArrowRight, Layers, Info, Image as ImageIcon } from 'lucide-react';
 import { WebsiteProject, BusinessInfo } from '../types.ts';
 import { api } from '../services/api.ts';
+import { StyledSelect } from './StyledSelect.tsx';
 
 interface ManageInfoViewProps {
   projects: WebsiteProject[];
   activeProjectId?: string;
-  onUpdateProjectInfo: (projectId: string, updatedInfo: Partial<BusinessInfo>, updatedName?: string) => void;
+  onUpdateProjectInfo: (projectId: string, updatedInfo: Partial<BusinessInfo>, updatedName?: string) => Promise<void>;
   onNavigateHome: () => void;
 }
 
@@ -22,6 +23,7 @@ export const ManageInfoView: React.FC<ManageInfoViewProps> = ({
 
   const [activeTab, setActiveTab] = useState<'basic' | 'contact' | 'preferences'>('basic');
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
+  const [formError, setFormError] = useState('');
 
   const selectedProject = projects.find((p) => p.id === selectedProjectId) || projects[0];
 
@@ -30,6 +32,7 @@ export const ManageInfoView: React.FC<ManageInfoViewProps> = ({
   const [category, setCategory] = useState('Clothing and Fashion');
   const [description, setDescription] = useState('');
   const [logoPreview, setLogoPreview] = useState<string>('');
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [streetAddress, setStreetAddress] = useState('');
@@ -56,19 +59,19 @@ export const ManageInfoView: React.FC<ManageInfoViewProps> = ({
     const info = selectedProject.businessInfo;
     setBusinessName(info?.businessName || selectedProject.name);
     setCategory(info?.category || selectedProject.category || 'Clothing and Fashion');
-    setDescription(info?.description || 'Welcome to our official website!');
+    setDescription(info?.description || '');
     setLogoPreview(info?.logoUrl || '');
-    setEmail(info?.email || 'admin@gmail.com');
-    setPhone(info?.phone || '+1 (555) 000-0000');
-    setStreetAddress(info?.streetAddress || '123 Main Street');
-    setCity(info?.city || 'New York');
-    setStateProvince(info?.stateProvince || 'NY');
+    setEmail(info?.email || '');
+    setPhone(info?.phone || '');
+    setStreetAddress(info?.streetAddress || '');
+    setCity(info?.city || '');
+    setStateProvince(info?.stateProvince || '');
     setOperatingHours(info?.operatingHours || 'Mon - Sat: 10:00 AM – 6:30 PM');
 
-    setWhatsappNumber(info?.whatsappNumber || '+15550000000');
-    setInstagramUrl(info?.instagramUrl || 'https://instagram.com/yourbusiness');
-    setFacebookUrl(info?.facebookUrl || 'https://facebook.com/yourbusiness');
-    setOtherWebsiteUrl(info?.otherWebsiteUrl || 'https://mybrand.com');
+    setWhatsappNumber(info?.whatsappNumber || '');
+    setInstagramUrl(info?.instagramUrl || '');
+    setFacebookUrl(info?.facebookUrl || '');
+    setOtherWebsiteUrl(info?.otherWebsiteUrl || '');
 
     setCurrency(info?.currency || '$ USD (United States Dollar)');
     setDisplayPrices(info?.displayPrices !== undefined ? info.displayPrices : true);
@@ -78,7 +81,7 @@ export const ManageInfoView: React.FC<ManageInfoViewProps> = ({
 
   if (!selectedProject) return null;
 
-  const handleSave = (isDraft = false) => {
+  const handleSave = async (isDraft = false): Promise<boolean> => {
     const updatedInfo: BusinessInfo = {
       businessName,
       category,
@@ -100,17 +103,21 @@ export const ManageInfoView: React.FC<ManageInfoViewProps> = ({
       customHeroHeadline,
     };
 
-    onUpdateProjectInfo(selectedProjectId, updatedInfo, businessName);
-
-    setSaveStatus(isDraft ? 'Draft saved successfully!' : `Changes saved for ${businessName}!`);
-    setTimeout(() => {
-      setSaveStatus(null);
-    }, 2000);
+    setFormError('');
+    try {
+      await onUpdateProjectInfo(selectedProjectId, updatedInfo, businessName);
+      setSaveStatus(isDraft ? 'Draft saved successfully!' : `Changes saved for ${businessName}!`);
+      setTimeout(() => setSaveStatus(null), 2000);
+      return true;
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : 'Unable to save business details.');
+      return false;
+    }
   };
 
-  const handleSaveAndContinue = (e: React.FormEvent) => {
+  const handleSaveAndContinue = async (e: React.FormEvent) => {
     e.preventDefault();
-    handleSave(false);
+    if (!(await handleSave(false))) return;
     if (activeTab === 'basic') {
       setActiveTab('contact');
     } else if (activeTab === 'contact') {
@@ -122,24 +129,24 @@ export const ManageInfoView: React.FC<ManageInfoViewProps> = ({
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setLogoPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-
+      setFormError('');
+      setIsUploadingLogo(true);
       try {
-        const fileUrl = await api.uploadLogo(file);
+        const fileUrl = await api.uploadLogo(file, selectedProjectId);
         setLogoPreview(fileUrl);
       } catch (err) {
-        console.warn('Backend image upload fallback to local preview:', err);
+        setFormError(err instanceof Error ? err.message : 'Unable to upload the logo.');
+      } finally {
+        setIsUploadingLogo(false);
       }
     }
   };
 
   return (
     <div className="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-8 sm:py-10">
+      {formError && <p role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{formError}</p>}
       
       {/* Page Title & Breadcrumb header */}
       <div className="mb-6">
@@ -148,7 +155,7 @@ export const ManageInfoView: React.FC<ManageInfoViewProps> = ({
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#1E1C24]">
               Business Details
             </h1>
-            <p className="mt-1 text-sm text-[#646074]">
+            <p className="mt-1 text-sm text-[#3F2B27]">
               Enter the information required to generate your custom website.
             </p>
           </div>
@@ -171,20 +178,18 @@ export const ManageInfoView: React.FC<ManageInfoViewProps> = ({
                 Select Website / Template:
               </label>
               
-              <div className="relative flex-1">
-                <select
+              <div className="flex-1">
+                <StyledSelect
                   id="select-template-site"
                   value={selectedProjectId}
-                  onChange={(e) => setSelectedProjectId(e.target.value)}
-                  className="w-full rounded-xl border border-[#DCE0F5] bg-[#F2F3FB] py-2 pl-3.5 pr-9 text-xs font-semibold text-[#1E1C24] focus:outline-none focus:ring-2 focus:ring-[#AF4418] shadow-xs cursor-pointer appearance-none"
-                >
-                  {projects.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} — {p.category} ({p.status === 'published' ? 'Live' : `${p.progress}% Draft`})
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-2.5 h-3.5 w-3.5 text-[#646074]" />
+                  onChange={setSelectedProjectId}
+                  compact
+                  options={projects.map((project) => ({
+                    value: project.id,
+                    label: `${project.name} — ${project.category}`,
+                    detail: project.status === 'published' ? 'Live website' : `${project.progress}% complete · Draft`,
+                  }))}
+                />
               </div>
             </div>
 
@@ -265,21 +270,21 @@ export const ManageInfoView: React.FC<ManageInfoViewProps> = ({
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-[#1E1C24] mb-1.5">
                   Business Category
                 </label>
-                <div className="relative">
-                  <select
+                <div>
+                  <StyledSelect
+                    id="business-category"
                     value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full rounded-xl border border-[#DCE0F5] bg-white px-3.5 py-2.5 text-sm text-[#1E1C24] focus:outline-none focus:ring-2 focus:ring-[#AF4418] appearance-none cursor-pointer"
-                  >
-                    <option value="Clothing and Fashion">Clothing and Fashion</option>
-                    <option value="Beauty and Cosmetics">Beauty and Cosmetics</option>
-                    <option value="Home and Ceramics">Home and Ceramics</option>
-                    <option value="Artisanal Bakery & Cafe">Artisanal Bakery & Cafe</option>
-                    <option value="Architecture & Interior Design">Architecture & Interior Design</option>
-                    <option value="Jewelry & Luxury Goods">Jewelry & Luxury Goods</option>
-                    <option value="Wellness & Spa">Wellness & Spa</option>
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3.5 top-3.5 h-4 w-4 text-[#646074]" />
+                    onChange={setCategory}
+                    options={[
+                      { value: 'Clothing and Fashion', label: 'Clothing and Fashion' },
+                      { value: 'Beauty and Cosmetics', label: 'Beauty and Cosmetics' },
+                      { value: 'Home and Ceramics', label: 'Home and Ceramics' },
+                      { value: 'Artisanal Bakery & Cafe', label: 'Artisanal Bakery & Cafe' },
+                      { value: 'Architecture & Interior Design', label: 'Architecture & Interior Design' },
+                      { value: 'Jewelry & Luxury Goods', label: 'Jewelry & Luxury Goods' },
+                      { value: 'Wellness & Spa', label: 'Wellness & Spa' },
+                    ]}
+                  />
                 </div>
               </div>
             </div>
@@ -317,16 +322,18 @@ export const ManageInfoView: React.FC<ManageInfoViewProps> = ({
                     <input
                       type="file"
                       id="logo-upload"
-                      accept="image/*"
+                      accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
                       onChange={handleLogoUpload}
+                      disabled={isUploadingLogo}
                       className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                     />
                     <button
                       type="button"
-                      className="inline-flex items-center gap-2 rounded-xl bg-[#AF4418] px-4 py-2 text-xs font-semibold text-[#FFFFFF] shadow-sm hover:bg-[#963810] transition-colors"
+                      disabled={isUploadingLogo}
+                      className="inline-flex items-center gap-2 rounded-xl bg-[#AF4418] px-4 py-2 text-xs font-semibold text-[#FFFFFF] shadow-sm transition-colors hover:bg-[#963810] disabled:cursor-wait disabled:opacity-60"
                     >
                       <Upload className="h-3.5 w-3.5" />
-                      <span>Upload Image</span>
+                      <span>{isUploadingLogo ? 'Uploading…' : 'Upload Image'}</span>
                     </button>
                   </div>
                   <p className="text-[11px] text-[#646074]">

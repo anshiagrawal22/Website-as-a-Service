@@ -14,87 +14,60 @@ export interface AuthRequest extends Request {
   user?: AuthenticatedUser;
 }
 
+async function resolveUserFromAuthorization(authHeader: string): Promise<AuthenticatedUser> {
+  if (!authHeader.startsWith('Bearer ')) {
+    throw new AppError('Invalid authorization header.', 401);
+  }
+  const token = authHeader.slice('Bearer '.length);
+  if (!token) throw new AppError('Authentication required. Provide a bearer token.', 401);
+
+  let decoded: AuthenticatedUser;
+  try {
+    decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET || 'verdant-studio-secret-key-2026-very-secure'
+    ) as AuthenticatedUser;
+  } catch {
+    throw new AppError('Invalid or expired authentication token.', 401);
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: decoded.id },
+    select: { id: true, email: true, name: true, role: true },
+  });
+  if (!user) throw new AppError('User belonging to this token no longer exists.', 401);
+  return user;
+}
+
 export async function authenticateToken(
   req: AuthRequest,
   _res: Response,
   next: NextFunction
 ): Promise<void> {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (!token) {
-    if (process.env.NODE_ENV !== 'production') {
-      const defaultUser = await prisma.user.findFirst({
-        where: { email: 'dimplelulla2004@gmail.com' },
-        select: { id: true, email: true, name: true, role: true },
-      });
-      if (defaultUser) {
-        req.user = defaultUser;
-        return next();
-      }
-    }
-    throw new AppError('Authentication required. Missing Bearer token.', 401);
-  }
-
   try {
-    const secret = process.env.JWT_SECRET || 'verdant-studio-secret-key-2026-very-secure';
-    const decoded = jwt.verify(token, secret) as AuthenticatedUser;
-    
-    // Verify user exists in database
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.id },
-      select: { id: true, email: true, name: true, role: true },
-    });
-
-    if (!user) {
-      throw new AppError('User belonging to this token no longer exists.', 401);
-    }
-
-    req.user = user;
+    const authHeader = req.headers.authorization;
+    if (!authHeader) throw new AppError('Authentication required. Provide a bearer token.', 401);
+    req.user = await resolveUserFromAuthorization(authHeader);
     next();
-  } catch (err: any) {
-    if (err instanceof AppError) {
-      next(err);
-    } else {
-      next(new AppError('Invalid or expired authentication token.', 401));
-    }
+  } catch (err) {
+    next(err);
   }
 }
 
-// Optional Auth: if token is present, use it; otherwise, fall back to the default demo user (Dimple)
 export async function optionalAuth(
   req: AuthRequest,
   _res: Response,
   next: NextFunction
 ): Promise<void> {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
-
-  if (token) {
-    try {
-      const secret = process.env.JWT_SECRET || 'verdant-studio-secret-key-2026-very-secure';
-      const decoded = jwt.verify(token, secret) as AuthenticatedUser;
-      const user = await prisma.user.findUnique({
-        where: { id: decoded.id },
-        select: { id: true, email: true, name: true, role: true },
-      });
-      if (user) {
-        req.user = user;
-        return next();
-      }
-    } catch {
-      // Continue to fallback
-    }
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    next();
+    return;
   }
-
-  // Fallback to primary demo user
-  const defaultUser = await prisma.user.findFirst({
-    where: { email: 'dimplelulla2004@gmail.com' },
-    select: { id: true, email: true, name: true, role: true },
-  });
-
-  if (defaultUser) {
-    req.user = defaultUser;
+  try {
+    req.user = await resolveUserFromAuthorization(authHeader);
+    next();
+  } catch (err) {
+    next(err);
   }
-  next();
 }

@@ -1,16 +1,30 @@
-# React + Vite
+# Website Builder Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+This folder contains the React 19 and TypeScript client for Website as a Service. It uses Vite for local development and production builds, Tailwind CSS for styling, and the Express API in `../backend` for account, website, template, product, upload, pricing, and storefront data.
 
-Currently, two official plugins are available:
+## Run the client
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Install dependencies from the repository root and start the API first:
 
-## React Compiler
+```powershell
+npm install --prefix frontend
+npm run server
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+In another terminal at the repository root:
 
-## Expanding the Oxlint configuration
+```powershell
+npm run frontend
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+Vite serves the client at `http://localhost:5173` and proxies API and upload requests to the local backend at `http://localhost:5001`. See the root [README](../README.md) for database setup, environment variables, seeded data, and the full app feature overview.
+
+## Scripts
+
+Run these from the repository root:
+
+```powershell
+npm run lint --prefix frontend
+npm run build --prefix frontend
+npm run preview --prefix frontend
+```

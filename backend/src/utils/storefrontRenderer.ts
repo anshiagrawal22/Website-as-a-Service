@@ -21,6 +21,12 @@ export function renderStorefrontHtml(
   const textColor = theme.textColor || '#1E1C24';
   const borderColor = theme.borderColor || '#DCE0F5';
   const fontSerif = theme.fontSerif || 'Playfair Display';
+  const logoUrl = typeof config.logoUrl === 'string' && /^(https?:\/\/|\/uploads\/)/i.test(config.logoUrl)
+    ? config.logoUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
+    : '';
+  const logoMarkup = logoUrl
+    ? `<img src="${logoUrl}" alt="${(config.siteName || siteName).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')}" class="max-h-10 max-w-40 object-contain" />`
+    : (config.siteName || siteName);
 
   // Fallback image helper
   const getProductImage = (item: any) => {
@@ -903,7 +909,7 @@ export function renderStorefrontHtml(
   <meta name="description" content="${config.tagline || 'Welcome to ' + siteName}" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Cinzel:wght@400;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     :root {
@@ -953,8 +959,8 @@ export function renderStorefrontHtml(
   <!-- Header Navigation -->
   <header class="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-[${borderColor}] px-6 py-4 shadow-xs">
     <div class="max-w-6xl mx-auto flex items-center justify-between">
-      <a href="#" class="font-serif text-2xl font-bold tracking-tight text-[${textColor}]">
-        ${config.siteName || siteName}
+      <a href="#" class="font-serif text-2xl font-bold tracking-tight text-[${textColor}] flex items-center">
+        ${logoMarkup}
       </a>
 
       <nav class="hidden md:flex items-center gap-8 text-xs font-medium text-[#646074]">

@@ -5,6 +5,11 @@ import { AppError } from '../middlewares/errorHandler.js';
 import type { SiteConfig } from '../utils/siteConfig.js';
 import { FASHION_CONFIG } from '../utils/templateDefaults.js';
 
+function authenticatedUserId(req: AuthRequest): string {
+  if (!req.user) throw new AppError('Authentication required.', 401);
+  return req.user.id;
+}
+
 function parseConfig(jsonStr: string): SiteConfig {
   try {
     return JSON.parse(jsonStr || '{}');
@@ -15,6 +20,8 @@ function parseConfig(jsonStr: string): SiteConfig {
 
 function siteToProject(site: any) {
   const draft = parseConfig(site.draftConfig);
+  const preferences = (draft as any).businessPreferences || {};
+  const businessDetails = (draft as any).businessDetails || {};
   const productsCount = site._count?.products ?? (site.products?.length || 0);
 
   const defaultSteps = [
@@ -63,19 +70,19 @@ function siteToProject(site: any) {
       category: (draft as any).category || 'Fashion & Lifestyle',
       description: draft.tagline || '',
       logoUrl: draft.logoUrl || '',
-      email: draft.contact?.email || 'admin@aureliaboutique.com',
-      phone: draft.contact?.phone || '+1 (415) 890-2341',
-      streetAddress: draft.contact?.address || '428 Sutter Street, San Francisco, CA',
-      city: 'San Francisco',
-      stateProvince: 'CA',
+      email: draft.contact?.email || '',
+      phone: draft.contact?.phone || '',
+      streetAddress: draft.contact?.address || '',
+      city: businessDetails.city || '',
+      stateProvince: businessDetails.stateProvince || '',
       operatingHours: draft.contact?.hours || 'Mon - Sat: 10:00 AM – 6:30 PM',
       whatsappNumber: draft.socials?.whatsapp || '',
-      instagramUrl: draft.socials?.instagram || 'https://instagram.com/aurelia.atelier',
-      facebookUrl: draft.socials?.facebook || 'https://facebook.com/aureliaboutique',
-      otherWebsiteUrl: '',
-      currency: '$ USD (United States Dollar)',
-      displayPrices: true,
-      displayContactForm: true,
+      instagramUrl: draft.socials?.instagram || '',
+      facebookUrl: draft.socials?.facebook || '',
+      otherWebsiteUrl: preferences.otherWebsiteUrl || '',
+      currency: preferences.currency || '$ USD (United States Dollar)',
+      displayPrices: preferences.displayPrices ?? true,
+      displayContactForm: preferences.displayContactForm ?? true,
       customHeroHeadline: heroProps.headline || '',
     },
     draftConfig: draft,
@@ -86,7 +93,7 @@ function siteToProject(site: any) {
 export async function getAllProjects(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     const status = req.query.status as string | undefined;
-    const where: any = {};
+    const where: any = { userId: authenticatedUserId(req) };
     if (status) where.status = status;
 
     const sites = await prisma.site.findMany({
@@ -113,7 +120,7 @@ export async function getProjectById(req: AuthRequest, res: Response, next: Next
   try {
     const { id } = req.params;
     const site = await prisma.site.findFirst({
-      where: { OR: [{ id }, { slug: id }] },
+      where: { OR: [{ id }, { slug: id }], userId: authenticatedUserId(req) },
       include: {
         _count: { select: { products: true } },
       },
@@ -134,11 +141,10 @@ export async function getProjectById(req: AuthRequest, res: Response, next: Next
 
 export async function createProject(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { id, name, category, templateId, primaryColor, businessInfo } = req.body;
+    const { id, name, category, templateId, activeTemplate, primaryColor, businessInfo } = req.body;
     if (!name) throw new AppError('Site name is required.', 400);
 
-    const user = req.user || (await prisma.user.findFirst());
-    if (!user) throw new AppError('User not found.', 400);
+    const userId = authenticatedUserId(req);
 
     const baseSlug = (id || name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     let slug = baseSlug;
@@ -152,16 +158,17 @@ export async function createProject(req: AuthRequest, res: Response, next: NextF
       siteName: name,
       tagline: businessInfo?.description || 'Effortless silhouettes crafted with intention.',
     };
+    if (category) (startConfig as any).category = category;
     if (primaryColor) {
       startConfig.theme.primaryColor = primaryColor;
     }
 
     const newSite = await prisma.site.create({
       data: {
-        userId: user.id,
+        userId,
         name: name.trim(),
         slug,
-        templateId: templateId || 'boutique-chic',
+        templateId: templateId || activeTemplate || 'boutique-chic',
         status: 'draft',
         draftConfig: JSON.stringify(startConfig),
         publishedConfig: '{}',
@@ -186,7 +193,7 @@ export async function updateProject(req: AuthRequest, res: Response, next: NextF
     const body = req.body;
 
     const site = await prisma.site.findFirst({
-      where: { OR: [{ id }, { slug: id }] },
+      where: { OR: [{ id }, { slug: id }], userId: authenticatedUserId(req) },
     });
     if (!site) throw new AppError(`Project '${id}' not found.`, 404);
 
@@ -249,7 +256,7 @@ export async function updateBusinessInfo(req: AuthRequest, res: Response, next: 
     const { updatedInfo, updatedName } = req.body;
 
     const site = await prisma.site.findFirst({
-      where: { OR: [{ id }, { slug: id }] },
+      where: { OR: [{ id }, { slug: id }], userId: authenticatedUserId(req) },
     });
     if (!site) throw new AppError(`Project '${id}' not found.`, 404);
 
@@ -260,25 +267,39 @@ export async function updateBusinessInfo(req: AuthRequest, res: Response, next: 
       draft.siteName = updatedName;
     }
     if (updatedInfo) {
-      if (updatedInfo.description) draft.tagline = updatedInfo.description;
+      if (updatedInfo.category !== undefined) (draft as any).category = updatedInfo.category;
+      if (updatedInfo.description !== undefined) draft.tagline = updatedInfo.description;
       if (updatedInfo.logoUrl !== undefined) draft.logoUrl = updatedInfo.logoUrl;
-      if (updatedInfo.email || updatedInfo.phone || updatedInfo.streetAddress || updatedInfo.operatingHours) {
+      if (['email', 'phone', 'streetAddress', 'operatingHours', 'city', 'stateProvince'].some(key => updatedInfo[key] !== undefined)) {
         draft.contact = {
-          email: updatedInfo.email || draft.contact?.email || '',
-          phone: updatedInfo.phone || draft.contact?.phone || '',
-          address: updatedInfo.streetAddress || draft.contact?.address || '',
-          hours: updatedInfo.operatingHours || draft.contact?.hours || '',
+          ...draft.contact,
+          email: updatedInfo.email ?? draft.contact?.email ?? '',
+          phone: updatedInfo.phone ?? draft.contact?.phone ?? '',
+          address: updatedInfo.streetAddress ?? draft.contact?.address ?? '',
+          hours: updatedInfo.operatingHours ?? draft.contact?.hours ?? '',
+        };
+        (draft as any).businessDetails = {
+          ...(draft as any).businessDetails,
+          ...(updatedInfo.city !== undefined ? { city: updatedInfo.city } : {}),
+          ...(updatedInfo.stateProvince !== undefined ? { stateProvince: updatedInfo.stateProvince } : {}),
         };
       }
-      if (updatedInfo.instagramUrl || updatedInfo.facebookUrl || updatedInfo.whatsappNumber) {
+      if (['instagramUrl', 'facebookUrl', 'whatsappNumber'].some(key => updatedInfo[key] !== undefined)) {
         draft.socials = {
-          instagram: updatedInfo.instagramUrl || draft.socials?.instagram,
-          facebook: updatedInfo.facebookUrl || draft.socials?.facebook,
-          whatsapp: updatedInfo.whatsappNumber || draft.socials?.whatsapp,
+          instagram: updatedInfo.instagramUrl ?? draft.socials?.instagram,
+          facebook: updatedInfo.facebookUrl ?? draft.socials?.facebook,
+          whatsapp: updatedInfo.whatsappNumber ?? draft.socials?.whatsapp,
         };
       }
+      (draft as any).businessPreferences = {
+        ...(draft as any).businessPreferences,
+        ...(updatedInfo.currency !== undefined ? { currency: updatedInfo.currency } : {}),
+        ...(updatedInfo.displayPrices !== undefined ? { displayPrices: updatedInfo.displayPrices } : {}),
+        ...(updatedInfo.displayContactForm !== undefined ? { displayContactForm: updatedInfo.displayContactForm } : {}),
+        ...(updatedInfo.otherWebsiteUrl !== undefined ? { otherWebsiteUrl: updatedInfo.otherWebsiteUrl } : {}),
+      };
       const hero = draft.sections?.find(s => s.type === 'hero');
-      if (hero && updatedInfo.customHeroHeadline) {
+      if (hero && updatedInfo.customHeroHeadline !== undefined) {
         (hero.props as any).headline = updatedInfo.customHeroHeadline;
       }
     }
@@ -307,7 +328,7 @@ export async function publishProject(req: AuthRequest, res: Response, next: Next
   try {
     const { id } = req.params;
     const site = await prisma.site.findFirst({
-      where: { OR: [{ id }, { slug: id }] },
+      where: { OR: [{ id }, { slug: id }], userId: authenticatedUserId(req) },
     });
     if (!site) throw new AppError(`Project '${id}' not found.`, 404);
 
@@ -336,7 +357,7 @@ export async function revertToDraft(req: AuthRequest, res: Response, next: NextF
   try {
     const { id } = req.params;
     const site = await prisma.site.findFirst({
-      where: { OR: [{ id }, { slug: id }] },
+      where: { OR: [{ id }, { slug: id }], userId: authenticatedUserId(req) },
     });
     if (!site) throw new AppError(`Project '${id}' not found.`, 404);
 
@@ -364,7 +385,7 @@ export async function deleteProject(req: AuthRequest, res: Response, next: NextF
   try {
     const { id } = req.params;
     const site = await prisma.site.findFirst({
-      where: { OR: [{ id }, { slug: id }] },
+      where: { OR: [{ id }, { slug: id }], userId: authenticatedUserId(req) },
     });
     if (!site) throw new AppError(`Project '${id}' not found.`, 404);
 

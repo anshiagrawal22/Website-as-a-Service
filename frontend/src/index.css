@@ -23,3 +23,44 @@ body {
   background-color: var(--palette-bg);
   color: var(--palette-text-dark);
 }
+
+select {
+  appearance: none;
+  border-radius: 0.75rem;
+  border-color: var(--palette-periwinkle-border);
+  background-color: #fff;
+  color: var(--palette-text-dark);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23646074' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  padding-right: 2.5rem;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+select:hover {
+  border-color: #af4418a6;
+}
+
+select:focus-visible {
+  outline: none;
+  border-color: var(--palette-terracotta);
+  box-shadow: 0 0 0 3px #af44182e;
+}
+
+select option {
+  background-color: #fff;
+  color: var(--palette-text-dark);
+}
+
+:root[data-theme="sage"] [class*="bg-[#AF4418]"] { background-color: #4F772D !important; }
+:root[data-theme="sage"] [class*="hover:bg-[#963810]"]:hover { background-color: #3F6124 !important; }
+:root[data-theme="sage"] [class*="text-[#AF4418]"] { color: #4F772D !important; }
+:root[data-theme="sage"] [class*="border-[#AF4418]"] { border-color: #4F772D !important; }
+:root[data-theme="sage"] [class*="bg-[#FCEEE8]"] { background-color: #EEF4E8 !important; }
+:root[data-theme="sage"] [class*="border-[#F3D5C8]"] { border-color: #D7E4CA !important; }
+:root[data-theme="amber"] [class*="bg-[#AF4418]"] { background-color: #B7791F !important; }
+:root[data-theme="amber"] [class*="hover:bg-[#963810]"]:hover { background-color: #935F18 !important; }
+:root[data-theme="amber"] [class*="text-[#AF4418]"] { color: #A66B16 !important; }
+:root[data-theme="amber"] [class*="border-[#AF4418]"] { border-color: #B7791F !important; }
+:root[data-theme="amber"] [class*="bg-[#FCEEE8]"] { background-color: #FBF2DF !important; }
+:root[data-theme="amber"] [class*="border-[#F3D5C8]"] { border-color: #EBD9B7 !important; }

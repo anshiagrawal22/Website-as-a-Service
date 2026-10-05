@@ -1,100 +1,111 @@
-# Website-as-a-Service (WaaS) Platform & Storefront Engine
+# Website as a Service
 
-A modern, responsive multi-tenant SaaS website builder and e-commerce platform inspired by Shopify. Small business owners can design, customize, and publish professional storefronts with live previews, multi-currency cart & checkout, product inventory, and responsive industry-tailored templates.
+A website-builder platform for creating and managing business websites. Users can create sites, choose from a catalogue of templates, edit their content and appearance, manage products, and publish a storefront. The app includes a React/Vite frontend and an Express/Prisma backend.
 
----
+## Current features
 
-## 🚀 Key Features
+- Account registration and sign-in with user-owned website workspaces.
+- Public template catalogue with seven seeded starter designs for fashion, ceramics, creative portfolios, wineries, bakeries, interior design, and photography.
+- Website editor with a live preview, responsive viewport modes, editable sections and navigation, color palettes, heading-font choices, and draft saving.
+- Business details, contact information, social links, and logo uploads.
+- Product catalogue management, including images, categories, inventory, visibility, and sorting.
+- Draft and published site configurations, public storefront URLs, template switching, and configuration version history.
+- Storefront checkout that creates pending orders, plus inquiry submission and owner-facing order/inquiry status management.
+- Pricing information and custom-domain records.
 
-### 🎨 Live Website Builder & Visual Editor
-- **Dynamic Live Canvas**: Interactive preview with real-time editing of typography, hero banners, story sections, and contact atelier info.
-- **Responsive Viewport Switcher**: Instant live switching between **Desktop (100%)**, **Tablet (768px)**, and **Mobile (375px)** device modes.
-- **Multi-Template Architecture**: 7 production-grade industry templates:
-  - *Modern Fashion Store* (Retail & e-commerce apparel)
-  - *Artisan Ceramics & Homeware* (Earth-toned craft store)
-  - *Creative Portfolio* (High-contrast typography & project showcase)
-  - *Weinhof Johannes Winery* (Rich burgundy tasting & vineyard heritage)
-  - *Naturally Crafted Sourdough Bakery* (Warm crust tones & artisanal process)
-  - *AURORA Luxury Interior Design* (Minimalist luxury & spatial design)
-  - *Verdandi Photography Studio* (Atmospheric editorial gallery & packages)
-- **Draft & Publish Engine**: Dual draft/published configurations with automated slug routing (`/s/:slug`), custom domains, and snapshot version history.
+Checkout currently records orders with a pending payment status; it does not capture payments through Stripe or Razorpay. Custom-domain records are supported, but DNS setup and domain provisioning are not automated. The platform is still under development; verify deployment and payment requirements before using it for production transactions.
 
-### 🛍️ Complete E-Commerce Layer
-- **Add to Cart & Cart Drawer**: Slide-in cart drawer with variant selection, stock validation, promo code discounts, and tax/shipping computation.
-- **Multi-Gateway Checkout**: Support for Cash on Delivery (COD), Stripe, and Razorpay with customer address management.
-- **Order Management**: Dedicated order tracking pipeline (`pending`, `paid`, `processing`, `shipped`, `delivered`, `cancelled`).
-- **Product Catalog CRUD**: High-res image management, category tagging, stock alerts, and instant price adjustments.
+## Technology
 
-### 🤖 AI Copywriting Assistant
-- Integrated Google Gemini AI assistant to generate high-converting hero headlines, product descriptions, and brand stories in one click.
+- **Frontend:** React 19, TypeScript, Vite, Tailwind CSS
+- **Backend:** Node.js, Express, TypeScript
+- **Database:** Prisma with SQLite by default
+- **Authentication:** JWT bearer tokens and bcrypt password hashing
+- **Uploads:** Multer-backed image storage in `backend/uploads`
 
----
+## Requirements
 
-## 🛠️ Tech Stack
+- Node.js and npm
+- A terminal in the repository root
 
-- **Frontend**: React 19, TypeScript, Vite 8, Tailwind CSS v4, Lucide Icons, Motion
-- **Backend**: Node.js, Express.js (TypeScript), Prisma ORM (SQLite / PostgreSQL), JWT, bcryptjs, Multer
-- **Storefront Engine**: Server-rendered SSR engine with client-side interactive cart & checkout modals
+## Setup
 
----
+Install dependencies from the repository root:
 
-## 💻 Installation & Setup
+```powershell
+npm install --prefix backend
+npm install --prefix frontend
+```
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/dimple2001/Website-as-a-Service.git
-   cd Website-as-a-Service
-   ```
+Create the backend environment file:
 
-2. **Install dependencies:**
-   ```bash
-   # Install backend dependencies
-   cd backend && npm install
+```powershell
+Copy-Item backend/.env.example backend/.env
+```
 
-   # Install frontend dependencies
-   cd ../frontend && npm install
-   ```
+The example uses a local SQLite database at `backend/prisma/dev.db` (Prisma resolves `file:./dev.db` relative to the schema). Set a unique `JWT_SECRET` before running outside local development.
 
-3. **Initialize Database & Seed Data:**
-   ```bash
-   cd backend
-   cp .env.example .env
-   npx prisma generate
-   npx prisma db push
-   npm run prisma:seed
-   ```
+Generate the Prisma client and create/update the local database:
 
----
+```powershell
+npm run prisma:generate --prefix backend
+npm run prisma:push --prefix backend
+```
 
-## 🏃 Running Locally
+To load the seven templates and pricing plans into a **new local database**, run:
 
-Run both frontend and backend concurrently from the root directory:
+```powershell
+npm run prisma:seed --prefix backend
+```
 
-- **Start Backend API Server (Port 5001):**
-  ```bash
-  npm run server
-  ```
+> **Warning:** Seeding clears and recreates application records, including users, sites, products, orders, and templates. Do not run it against a database whose contents you need to keep.
 
-- **Start Frontend Client Dev Server (Port 3000 / 5173):**
-  ```bash
-  npm run frontend
-  ```
+## Run locally
 
-- **Or run both simultaneously:**
-  ```bash
-  # In terminal 1:
-  npm run backend
+Open two terminals at the repository root:
 
-  # In terminal 2:
-  npm run frontend
-  ```
+```powershell
+npm run server
+```
 
----
+```powershell
+npm run frontend
+```
 
-## 🧪 Testing Public Storefronts
-Once the backend is running, test any live published storefront directly at:
-- `http://localhost:5001/s/aurelia-boutique`
-- `http://localhost:5001/s/weinhof-johannes`
-- `http://localhost:5001/s/naturally-crafted-sourdough`
-- `http://localhost:5001/s/aurora-interior`
-- `http://localhost:5001/s/verdandi-photography`
+The API listens on `http://localhost:5001` by default; the Vite frontend is available at `http://localhost:5173`. The frontend development server proxies `/api`, `/uploads`, and `/s/` requests to the backend. The API health endpoint is `http://localhost:5001/api/health`.
+
+To create production builds for both applications:
+
+```powershell
+npm run build
+```
+
+To type-check the frontend:
+
+```powershell
+npm run lint --prefix frontend
+```
+
+## Main app pages
+
+- `/` — workspace, website drafts and published websites
+- `/templates` — browse templates
+- `/manageinfo` — manage business information
+- `/pricing` — view platform plans
+
+The workspace requires an account. Public storefronts are served by the backend at `/s/:slug` for published websites.
+
+## Configuration
+
+Backend environment variables are documented in [`backend/.env.example`](./backend/.env.example):
+
+| Variable | Purpose |
+| --- | --- |
+| `PORT` | API port (defaults to `5001`) |
+| `DATABASE_URL` | Prisma database connection; defaults to local SQLite |
+| `JWT_SECRET` | Secret used to sign authentication tokens |
+| `JWT_EXPIRES_IN` | Authentication token lifetime |
+| `CORS_ORIGIN` | Frontend origin allowed by the API |
+| `APP_URL` | Backend base URL used when constructing asset URLs |
+| `UPLOADS_DIR` | Optional absolute path for uploaded files |
+Set `VITE_API_URL` in the frontend environment only when the API is hosted at a non-default URL. When unset, the local Vite proxy is used in development.

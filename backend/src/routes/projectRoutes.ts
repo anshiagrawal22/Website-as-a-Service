@@ -9,11 +9,11 @@ import {
   revertToDraft,
   deleteProject,
 } from '../controllers/projectController.js';
-import { optionalAuth } from '../middlewares/auth.js';
+import { authenticateToken } from '../middlewares/auth.js';
 
 const router = Router();
 
-router.use(optionalAuth);
+router.use(authenticateToken);
 
 router.get('/', getAllProjects);
 router.post('/', createProject);

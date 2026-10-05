@@ -3,8 +3,28 @@ import type {
   Site, SiteConfig, Product, ProductImage,
 } from '../types.ts';
 
-const rawBase = (import.meta.env.VITE_API_URL || 'http://localhost:5001').replace(/\/+$/, '');
-const BASE = rawBase.endsWith('/api') ? rawBase : `${rawBase}/api`;
+export interface PricingPlan {
+  id: string;
+  name: string;
+  tagline: string;
+  monthlyPrice: number;
+  yearlyPrice: number;
+  isPopular: boolean;
+  features: string[];
+  cta: string;
+  ctaHref: string;
+  sortOrder: number;
+}
+
+const rawBase = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+const BASE = rawBase ? (rawBase.endsWith('/api') ? rawBase : `${rawBase}/api`) : '/api';
+
+export class ApiError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
 
 class ApiService {
   private token: string | null = null;
@@ -21,6 +41,15 @@ class ApiService {
 
   getToken() { return this.token; }
 
+  getPublicSiteUrl(slug: string): string {
+    return `${BASE}/sites/public/${encodeURIComponent(slug)}`;
+  }
+
+  getTemplatePreviewUrl(slug: string): string {
+    const backendBase = rawBase.replace(/\/api$/, '');
+    return `${backendBase}/s/${encodeURIComponent(slug)}`;
+  }
+
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
@@ -29,20 +58,43 @@ class ApiService {
     if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
 
     const res = await fetch(`${BASE}${endpoint}`, { ...options, headers });
-    const data = await res.json();
-    if (!res.ok || data.success === false) {
-      throw new Error(data.message || `Request failed (${res.status})`);
+    return this.parseResponse<T>(res);
+  }
+
+  private statusMessage(status: number): string {
+    if (status === 400) return 'Please check the submitted information.';
+    if (status === 401) return 'Please sign in again to continue.';
+    if (status === 403) return 'You do not have permission to perform this action.';
+    if (status === 404) return 'The requested resource could not be found.';
+    if (status >= 500) return 'The server encountered an error. Please try again later.';
+    return `Request failed (${status}).`;
+  }
+
+  private async parseResponse<T>(res: Response): Promise<T> {
+    const text = await res.text();
+    let data: any;
+    if (text) {
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new ApiError(res.ok ? 'The server returned an invalid response.' : this.statusMessage(res.status), res.status);
+      }
     }
-    return data;
+    if (!res.ok) {
+      throw new ApiError(typeof data?.message === 'string' ? data.message : this.statusMessage(res.status), res.status);
+    }
+    if (data?.success === false) {
+      throw new ApiError(typeof data.message === 'string' ? data.message : 'The request could not be completed.', res.status);
+    }
+    if (data === undefined) throw new ApiError('The server returned an empty response.', res.status);
+    return data as T;
   }
 
   private async upload<T>(endpoint: string, formData: FormData): Promise<T> {
     const headers: Record<string, string> = {};
     if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
     const res = await fetch(`${BASE}${endpoint}`, { method: 'POST', headers, body: formData });
-    const data = await res.json();
-    if (!res.ok || data.success === false) throw new Error(data.message || 'Upload failed');
-    return data;
+    return this.parseResponse<T>(res);
   }
 
   // ─── Auth ──────────────────────────────────────────────────────────────────
@@ -67,23 +119,43 @@ class ApiService {
     return (await this.request<{ success: boolean; user: any }>('/auth/me')).user;
   }
 
-  async updateProfile(name: string): Promise<any> {
-    try {
-      return await this.request('/auth/profile', {
-        method: 'PATCH',
-        body: JSON.stringify({ name }),
-      });
-    } catch {
-      return { success: true };
-    }
+  async updateProfile(name: string, themePreference?: 'terracotta' | 'sage' | 'amber'): Promise<any> {
+    return this.request('/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify({ name, ...(themePreference ? { themePreference } : {}) }),
+    });
   }
 
-  async getDomains(): Promise<any[]> {
-    try {
-      return (await this.request<{ success: boolean; domains: any[] }>('/domains')).domains || [];
-    } catch {
-      return [];
-    }
+  async getDomains(): Promise<{ id: string; domain: string; status: string; project?: { id: string; name: string; status: string } | null }[]> {
+    return (await this.request<{ success: boolean; domains: { id: string; domain: string; status: string; project?: { id: string; name: string; status: string } | null }[] }>('/domains')).domains;
+  }
+
+  async getPricing(): Promise<PricingPlan[]> {
+    return (await this.request<{ success: boolean; plans: PricingPlan[] }>('/pricing')).plans;
+  }
+
+  async getOrders(slug: string): Promise<any[]> {
+    return (await this.request<{ success: boolean; orders: any[] }>(`/store/${encodeURIComponent(slug)}/orders`)).orders;
+  }
+
+  async updateOrderStatus(slug: string, orderId: string, status: string): Promise<any> {
+    return (await this.request<{ success: boolean; order: any }>(`/store/${encodeURIComponent(slug)}/orders/${encodeURIComponent(orderId)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    })).order;
+  }
+
+  async createCheckout(slug: string, payload: {
+    items: { id: string; quantity: number }[];
+    customer: { name: string; email: string; phone: string };
+    shippingAddress: Record<string, string>;
+    shippingMethod: string;
+    paymentMethod: string;
+  }): Promise<{ orderNumber: string }> {
+    return this.request(`/store/${encodeURIComponent(slug)}/checkout/init`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
   }
 
   // ─── Sites ─────────────────────────────────────────────────────────────────
@@ -229,9 +301,7 @@ class ApiService {
   // ─── Legacy: Project-based API (kept for ManageInfoView etc.) ──────────────
 
   async getProjects(): Promise<WebsiteProject[]> {
-    try {
-      return (await this.request<{ success: boolean; projects: WebsiteProject[] }>('/projects')).projects;
-    } catch { return []; }
+    return (await this.request<{ success: boolean; projects: WebsiteProject[] }>('/projects')).projects;
   }
 
   async updateProject(id: string, updates: Partial<WebsiteProject>): Promise<WebsiteProject> {
@@ -260,14 +330,14 @@ class ApiService {
     })).project;
   }
 
-  async uploadLogo(file: File): Promise<string> {
+  async uploadLogo(file: File, siteId: string): Promise<string> {
     const form = new FormData();
     form.append('file', file);
+    form.append('siteId', siteId);
     const headers: Record<string, string> = {};
     if (this.token) headers['Authorization'] = `Bearer ${this.token}`;
     const res = await fetch(`${BASE}/uploads/logo`, { method: 'POST', headers, body: form });
-    const data = await res.json();
-    if (!res.ok || data.success === false) throw new Error(data.message || 'Upload failed');
+    const data = await this.parseResponse<{ success: boolean; url: string }>(res);
     return data.url;
   }
 }

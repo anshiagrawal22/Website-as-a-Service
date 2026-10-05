@@ -54,6 +54,7 @@ export const ProductManagerModal: React.FC<ProductManagerModalProps> = ({
     status: 'active' as 'active' | 'hidden',
     images: [] as ProductImage[],
   });
+  const [pendingImageFiles, setPendingImageFiles] = useState<File[]>([]);
 
   if (!isOpen) return null;
 
@@ -67,6 +68,7 @@ export const ProductManagerModal: React.FC<ProductManagerModalProps> = ({
   });
 
   const handleStartCreate = () => {
+    setPendingImageFiles([]);
     setFormData({
       name: '',
       description: '',
@@ -82,6 +84,7 @@ export const ProductManagerModal: React.FC<ProductManagerModalProps> = ({
   };
 
   const handleStartEdit = (product: Product) => {
+    setPendingImageFiles([]);
     setFormData({
       name: product.name,
       description: product.description || '',
@@ -113,9 +116,16 @@ export const ProductManagerModal: React.FC<ProductManagerModalProps> = ({
       };
 
       if (isCreatingNew) {
-        const created = await api.createProduct(siteId, payload);
-        const nextProducts = [created, ...products];
-        onProductsUpdated(nextProducts);
+        let created = await api.createProduct(siteId, payload);
+        onProductsUpdated([created, ...products]);
+        if (pendingImageFiles.length > 0) {
+          try {
+            created = await api.uploadProductImages(siteId, created.id, pendingImageFiles);
+            onProductsUpdated([created, ...products]);
+          } catch (error) {
+            alert(error instanceof Error ? error.message : 'Product saved, but its images could not be uploaded.');
+          }
+        }
       } else if (editingProduct) {
         const updated = await api.updateProduct(siteId, editingProduct.id, payload);
         const nextProducts = products.map((p) => (p.id === updated.id ? updated : p));
@@ -125,8 +135,7 @@ export const ProductManagerModal: React.FC<ProductManagerModalProps> = ({
       setEditingProduct(null);
       setIsCreatingNew(false);
     } catch (err) {
-      console.error('Failed to save product:', err);
-      alert('Failed to save product. Please try again.');
+      alert(err instanceof Error ? err.message : 'Failed to save product.');
     } finally {
       setIsLoading(false);
     }
@@ -144,8 +153,7 @@ export const ProductManagerModal: React.FC<ProductManagerModalProps> = ({
       }
       setDeleteConfirmId(null);
     } catch (err) {
-      console.error('Failed to delete product:', err);
-      alert('Failed to delete product.');
+      alert(err instanceof Error ? err.message : 'Failed to delete product.');
     } finally {
       setIsLoading(false);
     }
@@ -157,7 +165,7 @@ export const ProductManagerModal: React.FC<ProductManagerModalProps> = ({
       const nextProducts = products.map((p) => (p.id === updated.id ? updated : p));
       onProductsUpdated(nextProducts);
     } catch (err) {
-      console.error('Failed to toggle product status:', err);
+      alert(err instanceof Error ? err.message : 'Failed to update product status.');
     }
   };
 
@@ -166,8 +174,8 @@ export const ProductManagerModal: React.FC<ProductManagerModalProps> = ({
     if (!files || files.length === 0) return;
 
     if (!editingProduct) {
-      // For new product before saving, generate local preview data URL
       const fileList = Array.from(files);
+      setPendingImageFiles((previous) => [...previous, ...fileList]);
       fileList.forEach((file) => {
         const reader = new FileReader();
         reader.onload = (ev) => {
@@ -198,8 +206,7 @@ export const ProductManagerModal: React.FC<ProductManagerModalProps> = ({
       setFormData((prev) => ({ ...prev, images: updatedProduct.images }));
       onProductsUpdated(products.map((p) => (p.id === updatedProduct.id ? updatedProduct : p)));
     } catch (err) {
-      console.error('Failed to upload image:', err);
-      alert('Failed to upload image. Please check file format.');
+      alert(err instanceof Error ? err.message : 'Failed to upload image.');
     } finally {
       setIsUploadingImage(false);
     }
@@ -220,7 +227,7 @@ export const ProductManagerModal: React.FC<ProductManagerModalProps> = ({
       setFormData((prev) => ({ ...prev, images: updated.images }));
       onProductsUpdated(products.map((p) => (p.id === updated.id ? updated : p)));
     } catch (err) {
-      console.error('Failed to delete image:', err);
+      alert(err instanceof Error ? err.message : 'Failed to delete image.');
     }
   };
 

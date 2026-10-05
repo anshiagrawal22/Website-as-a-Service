@@ -10,14 +10,20 @@ interface SettingsModalProps {
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState<'profile' | 'domains' | 'theme'>('profile');
   const [saved, setSaved] = useState(false);
-  const [displayName, setDisplayName] = useState('Dimple Lulla');
-  const [email, setEmail] = useState('dimplelulla2004@gmail.com');
-  const [domains, setDomains] = useState<any[]>([]);
+  const [displayName, setDisplayName] = useState('');
+  const [email, setEmail] = useState('');
+  const [userPlan, setUserPlan] = useState('');
+  const [domains, setDomains] = useState<{ id: string; domain: string; status: string; project?: { name: string } | null }[]>([]);
+  const [themePreference, setThemePreference] = useState<'terracotta' | 'sage' | 'amber'>('terracotta');
+  const [loading, setLoading] = useState(false);
+  const [settingsError, setSettingsError] = useState('');
 
   useEffect(() => {
     if (!isOpen) return;
 
     async function loadSettings() {
+      setLoading(true);
+      setSettingsError('');
       try {
         const [user, domainList] = await Promise.all([
           api.getMe(),
@@ -26,12 +32,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
         if (user) {
           setDisplayName(user.name);
           setEmail(user.email);
+          setUserPlan(user.plan || 'Free');
+          setThemePreference(user.themePreference || 'terracotta');
         }
-        if (domainList) {
-          setDomains(domainList);
-        }
+        setDomains(domainList);
       } catch (err) {
-        console.warn('Using local settings fallback:', err);
+        setSettingsError(err instanceof Error ? err.message : 'Unable to load settings.');
+      } finally {
+        setLoading(false);
       }
     }
 
@@ -41,16 +49,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
   if (!isOpen) return null;
 
   const handleSave = async () => {
+    setSettingsError('');
     try {
-      await api.updateProfile(displayName);
+      await api.updateProfile(displayName, themePreference);
+      document.documentElement.dataset.theme = themePreference;
+      setSaved(true);
+      setTimeout(() => {
+        setSaved(false);
+        onClose();
+      }, 900);
     } catch (err) {
-      console.warn('Failed to update profile on backend:', err);
+      setSettingsError(err instanceof Error ? err.message : 'Unable to save settings.');
     }
-    setSaved(true);
-    setTimeout(() => {
-      setSaved(false);
-      onClose();
-    }, 900);
   };
 
   return (
@@ -62,7 +72,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           <div className="flex items-center gap-2.5">
             <h3 className="font-serif text-lg font-bold text-[#1E1C24]">Studio Settings</h3>
             <span className="text-[11px] font-bold text-[#AF4418] bg-[#FCEEE8] border border-[#F3D5C8] px-2.5 py-0.5 rounded-md">
-              Dimple Lulla
+              {displayName || 'Account'}
             </span>
           </div>
           <button
@@ -101,6 +111,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
         {/* Body Content */}
         <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+          {settingsError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">{settingsError}</p>}
+          {loading && <p className="text-xs text-[#646074]">Loading settings…</p>}
           {activeTab === 'profile' && (
             <div className="space-y-4 text-xs">
               <div>
@@ -121,11 +133,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                   readOnly
                   className="w-full rounded-xl border border-[#DCE0F5] bg-[#F2F3FB] px-3.5 py-2 text-xs text-[#646074]"
                 />
-                <p className="mt-1 text-[11px] text-[#646074]">Authenticated via Google AI Studio</p>
+                <p className="mt-1 text-[11px] text-[#646074]">Account email cannot be changed here.</p>
               </div>
 
               <div className="p-3.5 rounded-2xl border border-[#DCE0F5] bg-[#F2F3FB] space-y-1">
-                <span className="font-bold text-[#1E1C24]">Subscription Status: Studio Pro</span>
+                <span className="font-bold text-[#1E1C24]">Subscription Status: {userPlan || 'Loading'}</span>
                 <p className="text-[11px] text-[#646074]">
                   Unlimited site drafts, SSL custom domains, global CDN, and e-commerce integrations enabled.
                 </p>
@@ -139,10 +151,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
                 Manage DNS records and apex custom domains mapped to your Website as a Service websites.
               </p>
 
-              {(domains.length > 0 ? domains : [
-                { domain: 'aureliaboutique.com', status: 'dns_active', project: { name: 'Aurelia Boutique (Draft)' } },
-                { domain: 'kansoliving.com', status: 'live', project: { name: 'Kanso Living Co.' } },
-              ]).map((d) => (
+              {!loading && domains.length === 0 && <p className="rounded-xl border border-[#DCE0F5] bg-[#F2F3FB] p-4 text-[#646074]">No custom domains have been connected yet.</p>}
+              {domains.map((d) => (
                 <div key={d.domain} className="rounded-2xl border border-[#DCE0F5] bg-white p-3 space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -163,27 +173,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
 
           {activeTab === 'theme' && (
             <div className="space-y-3 text-xs">
-              <p className="text-[#646074]">
-                Your workspace is currently set to the <strong className="text-[#AF4418]">Terracotta & Soft Lilac Periwinkle</strong> palette.
-              </p>
-              <div className="grid grid-cols-4 gap-2 p-3 rounded-2xl border border-[#DCE0F5] bg-white text-center">
-                <div className="space-y-1">
-                  <div className="h-10 rounded-xl bg-[#AF4418] shadow-xs" />
-                  <span className="text-[10px] text-[#646074] font-semibold">#AF4418</span>
-                </div>
-                <div className="space-y-1">
-                  <div className="h-10 rounded-xl bg-[#F2F3FB] border border-[#DCE0F5]" />
-                  <span className="text-[10px] text-[#646074] font-semibold">#F2F3FB</span>
-                </div>
-                <div className="space-y-1">
-                  <div className="h-10 rounded-xl bg-[#FFFFFF] border border-[#DCE0F5]" />
-                  <span className="text-[10px] text-[#646074] font-semibold">#FFFFFF</span>
-                </div>
-                <div className="space-y-1">
-                  <div className="h-10 rounded-xl bg-[#1E1C24]" />
-                  <span className="text-[10px] text-[#646074] font-semibold">#1E1C24</span>
-                </div>
-              </div>
+              <p className="text-[#646074]">Choose a workspace accent palette. Your choice is saved to your account.</p>
+              {([
+                ['terracotta', 'Terracotta', '#AF4418'],
+                ['sage', 'Sage', '#4F772D'],
+                ['amber', 'Amber', '#B7791F'],
+              ] as const).map(([value, label, color]) => (
+                <label key={value} className="flex cursor-pointer items-center gap-3 rounded-xl border border-[#DCE0F5] bg-white p-3">
+                  <input type="radio" name="themePreference" value={value} checked={themePreference === value} onChange={() => setThemePreference(value)} />
+                  <span className="h-7 w-7 rounded-full" style={{ backgroundColor: color }} />
+                  <span className="font-semibold text-[#1E1C24]">{label}</span>
+                </label>
+              ))}
             </div>
           )}
         </div>
@@ -198,6 +199,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose })
           </button>
           <button
             onClick={handleSave}
+            disabled={loading}
             className="inline-flex items-center gap-1.5 rounded-xl bg-[#AF4418] px-4 py-2 text-xs font-semibold text-[#FFFFFF] shadow-sm hover:bg-[#963810] transition-colors"
           >
             {saved ? (

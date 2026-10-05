@@ -4,6 +4,8 @@ import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { AppError } from '../middlewares/errorHandler.js';
+import { prisma } from '../config/db.js';
+import { AuthRequest } from '../middlewares/auth.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -39,15 +41,43 @@ export const upload = multer({
   },
 });
 
-export function handleUploadLogo(req: Request, res: Response, next: NextFunction): void {
+export async function handleUploadLogo(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   try {
     if (!req.file) {
       throw new AppError('No image file uploaded.', 400);
     }
 
-    const host = req.get('host') || 'localhost:5001';
-    const protocol = req.protocol;
-    const fileUrl = `${protocol}://${host}/uploads/${req.file.filename}`;
+    if (!req.user) throw new AppError('Authentication required.', 401);
+    const siteId = req.body.siteId;
+    if (typeof siteId !== 'string' || !siteId.trim()) {
+      throw new AppError('Select a website before uploading its logo.', 400);
+    }
+    const site = await prisma.site.findFirst({
+      where: { OR: [{ id: siteId }, { slug: siteId }], userId: req.user.id },
+      select: { id: true, draftConfig: true, publishedConfig: true },
+    });
+    if (!site) throw new AppError('Site not found or access denied.', 404);
+
+    const fileUrl = `${req.protocol}://${req.get('host') || 'localhost:5001'}/uploads/${req.file.filename}`;
+    let draft: Record<string, any>;
+    let published: Record<string, any> | undefined;
+    try {
+      draft = JSON.parse(site.draftConfig || '{}');
+      if (site.publishedConfig && site.publishedConfig !== '{}') {
+        published = JSON.parse(site.publishedConfig);
+      }
+    } catch {
+      throw new AppError('The saved website configuration is invalid.', 500);
+    }
+    draft.logoUrl = fileUrl;
+    if (published) published.logoUrl = fileUrl;
+    await prisma.site.update({
+      where: { id: site.id },
+      data: {
+        draftConfig: JSON.stringify(draft),
+        ...(published ? { publishedConfig: JSON.stringify(published) } : {}),
+      },
+    });
 
     res.status(200).json({
       success: true,
